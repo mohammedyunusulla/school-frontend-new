@@ -1,0 +1,121 @@
+# Frontend CI/CD Pipeline - Self-hosted agent + Environment: IDC-Prod-VM1
+# Place this file in the FRONTEND repo (e.g., .azure-pipelines/frontend-ci-cd.yml)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - '**/*'
+
+# Use the self-hosted agent pool where your VM agent is registered
+pool:
+  name: Default
+
+variables:
+  # Environment name in Azure DevOps (exactly as created)
+  environmentName: 'IDC-Primary-VM1'
+
+  # Node.js version to build the frontend
+  nodeVersion: '20.x'
+
+  # Server paths on the VM
+  releaseDir: '/var/www/sms/frontend/releases'
+  currentLink: '/var/www/sms/frontend/current'
+
+  # Artifact naming
+  archiveName: 'frontend_$(Build.BuildId).tar.gz'
+
+  # Keep only the N most recent releases
+  keepReleases: 5
+
+stages:
+- stage: Build
+  displayName: Build Frontend
+  jobs:
+  - job: build
+    displayName: Build & Package
+    steps:
+    - checkout: self
+      clean: true
+
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '$(nodeVersion)'
+      displayName: 'Use Node $(nodeVersion)'
+
+    - script: |
+        set -euo pipefail
+        npm ci
+        npm run build
+
+        # Collect build output
+        if [ -d "dist" ]; then SRC=dist; elif [ -d "build" ]; then SRC=build; else
+          echo "❌ No dist/ or build/ folder found after build"; exit 1
+        fi
+
+        rm -rf out && mkdir -p out
+        cp -r "$SRC"/* out/
+      displayName: 'Install deps & build'
+
+    - task: ArchiveFiles@2
+      displayName: 'Archive built assets'
+      inputs:
+        rootFolderOrFile: 'out'
+        includeRootFolder: false
+        archiveType: 'tar'
+        tarCompression: 'gz'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(archiveName)'
+
+    - publish: '$(Build.ArtifactStagingDirectory)/$(archiveName)'
+      artifact: 'frontend-drop'
+      displayName: 'Publish build artifact'
+
+- stage: Deploy
+  displayName: Deploy Frontend to VM
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: deployFrontend
+    displayName: Deploy Frontend
+    environment: '$(environmentName)'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: 'frontend-drop'
+            displayName: 'Download artifact'
+
+          - script: |
+              set -euo pipefail
+
+              ARCHIVE_PATH="$(Pipeline.Workspace)/frontend-drop/$(archiveName)"
+              if [ ! -f "$ARCHIVE_PATH" ]; then
+                echo "❌ Artifact not found at $ARCHIVE_PATH"; exit 1
+              fi
+
+              # Ensure directories exist
+              sudo mkdir -p "$(releaseDir)"
+              sudo mkdir -p "$(dirname "$(currentLink)")"
+
+              REL_DIR="$(Build.BuildId)"
+              TARGET_DIR="$(releaseDir)/$REL_DIR"
+
+              echo "📦 Extracting to $TARGET_DIR"
+              sudo mkdir -p "$TARGET_DIR"
+              sudo tar -xzf "$ARCHIVE_PATH" -C "$TARGET_DIR"
+
+              echo "🔗 Switching symlink to $TARGET_DIR"
+              sudo ln -sfn "$TARGET_DIR" "$(currentLink)"
+
+              # Retain only the latest N releases
+              KEEP_PLUS_ONE=$(( $(keepReleases) + 1 ))
+              sudo bash -c "ls -1dt $(releaseDir)/* | tail -n +${KEEP_PLUS_ONE} | xargs -r rm -rf"
+
+              echo "♻️ Reloading Nginx"
+              sudo systemctl reload nginx || sudo systemctl restart nginx || true
+
+              echo "✅ Frontend deploy complete"
+            displayName: 'Extract, switch symlink, reload Nginx'

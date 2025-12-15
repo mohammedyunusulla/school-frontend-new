@@ -1,0 +1,116 @@
+.edusphere-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(2px);
+  z-index: 1500;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Horizontal Container */
+.loader-container {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Ring Loader Animation */
+.ring-loader {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 3px solid transparent;
+  border-top-color: #2196F3;
+  border-radius: 50%;
+  animation: rotate 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.ring:nth-child(1) {
+  border-top-color: #203e77;
+  animation-delay: 0s;
+}
+
+.ring:nth-child(2) {
+  border-top-color: #447eae;
+  animation-delay: -0.4s;
+  width: 80%;
+  height: 80%;
+}
+
+.ring:nth-child(3) {
+  border-top-color: #00BCD4;
+  animation-delay: -0.8s;
+  width: 60%;
+  height: 60%;
+}
+
+@keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Brand Name with Logo Colors */
+.brand-name {
+  display: flex;
+  font-size: 32px;
+  font-weight: bolder;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.edu {
+  color: #203e77; /* Dark Blue - matching logo */
+font-weight: bolder;
+}
+
+.sphere {
+  color: #447eae; /* Green - matching logo */
+  font-weight: bolder;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .edu {
+    color: #203e77; /* Lighter blue for dark mode */
+  }
+  
+  .sphere {
+    color: #447eae; /* Lighter green for dark mode */
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .brand-name {
+    font-size: 28px;
+    font-weight: bolder;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-name {
+    font-size: 24px;
+    font-weight: bolder;
+  }
+  
+  .loader-container {
+    gap: 15px;
+  }
+}
